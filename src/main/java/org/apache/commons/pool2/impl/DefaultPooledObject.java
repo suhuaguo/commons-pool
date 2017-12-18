@@ -32,18 +32,33 @@ import java.util.Deque;
  * @param <T> the type of object in the pool
  *
  * @since 2.0
+ * INFO:默认的 池化 封装类，并对此进行了一些封装。比如，设置对象的状态，借用时间、归还时间等等。
+ * 这种设计，在中间件中，是非常不错的。并且，能够通过 JMX 的方式，可以观察到对象是否使用均匀
+ * 分配均匀等等。
  */
 public class DefaultPooledObject<T> implements PooledObject<T> {
 
+    // 真正的对象
     private final T object;
+
+    // 对象的状态，表示此对象正在发呆
     private PooledObjectState state = PooledObjectState.IDLE; // @GuardedBy("this") to ensure transitions are valid
+    // 对象创建时间
     private final long createTime = System.currentTimeMillis();
+    // 最后借用的时间
     private volatile long lastBorrowTime = createTime;
+    // 最后使用的时间
     private volatile long lastUseTime = createTime;
+    // 最后归还时间
     private volatile long lastReturnTime = createTime;
+
     private volatile boolean logAbandoned = false;
+
     private volatile CallStack borrowedBy = NoOpCallStack.INSTANCE;
+
     private volatile CallStack usedBy = NoOpCallStack.INSTANCE;
+
+    // 借用的次数
     private volatile long borrowedCount = 0;
 
     /**
@@ -68,6 +83,7 @@ public class DefaultPooledObject<T> implements PooledObject<T> {
 
     @Override
     public long getActiveTimeMillis() {
+        // 下面写的比较严谨！！！不错！！！不错！！！因为获取活跃时间最多是从当前的来看的。
         // Take copies to avoid threading issues
         final long rTime = lastReturnTime;
         final long bTime = lastBorrowTime;
@@ -75,6 +91,8 @@ public class DefaultPooledObject<T> implements PooledObject<T> {
         if (rTime > bTime) {
             return rTime - bTime;
         }
+
+        // 有可能还没有归还
         return System.currentTimeMillis() - bTime;
     }
 
@@ -176,7 +194,7 @@ public class DefaultPooledObject<T> implements PooledObject<T> {
         return false;
     }
 
-    /**
+    /** 分配一个对象
      * Allocates the object.
      *
      * @return {@code true} if the original state was {@link PooledObjectState#IDLE IDLE}
@@ -189,6 +207,7 @@ public class DefaultPooledObject<T> implements PooledObject<T> {
             lastUseTime = lastBorrowTime;
             borrowedCount++;
             if (logAbandoned) {
+                // 记录堆栈信息
                 borrowedBy.fillInStackTrace();
             }
             return true;
@@ -202,7 +221,7 @@ public class DefaultPooledObject<T> implements PooledObject<T> {
         return false;
     }
 
-    /**
+    /** 重新分配此对象
      * Deallocates the object and sets it {@link PooledObjectState#IDLE IDLE}
      * if it is currently {@link PooledObjectState#ALLOCATED ALLOCATED}.
      *
@@ -212,6 +231,8 @@ public class DefaultPooledObject<T> implements PooledObject<T> {
     public synchronized boolean deallocate() {
         if (state == PooledObjectState.ALLOCATED ||
                 state == PooledObjectState.RETURNING) {
+
+            // 设置对象的状态
             state = PooledObjectState.IDLE;
             lastReturnTime = System.currentTimeMillis();
             borrowedBy.clear();
@@ -263,6 +284,7 @@ public class DefaultPooledObject<T> implements PooledObject<T> {
 
     /**
      * Marks the object as returning to the pool.
+     * 标记此对象已经归还了
      */
     @Override
     public synchronized void markReturning() {

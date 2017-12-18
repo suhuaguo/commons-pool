@@ -16,6 +16,11 @@
  */
 package org.apache.commons.pool2.impl;
 
+import org.apache.commons.pool2.BaseObject;
+import org.apache.commons.pool2.PooledObject;
+import org.apache.commons.pool2.SwallowedExceptionListener;
+
+import javax.management.*;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -29,19 +34,9 @@ import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import javax.management.InstanceAlreadyExistsException;
-import javax.management.InstanceNotFoundException;
-import javax.management.MBeanRegistrationException;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
-import javax.management.NotCompliantMBeanException;
-import javax.management.ObjectName;
-
-import org.apache.commons.pool2.BaseObject;
-import org.apache.commons.pool2.PooledObject;
-import org.apache.commons.pool2.SwallowedExceptionListener;
-
 /**
+ * 此类是 GenericObjectPool 与 GenericKeyedObjectPool 的方法的交集。提取了公共的部分放在这里。
+ *
  * Base class that provides common functionality for {@link GenericObjectPool}
  * and {@link GenericKeyedObjectPool}. The primary reason this class exists is
  * reduce code duplication between the two pool implementations.
@@ -51,6 +46,7 @@ import org.apache.commons.pool2.SwallowedExceptionListener;
  * This class is intended to be thread-safe.
  *
  * @since 2.0
+ * INFO:主要定义了对象池的一些配置信息和实现jmx注册注销等功能。
  */
 public abstract class BaseGenericObjectPool<T> extends BaseObject {
 
@@ -62,14 +58,21 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
     public static final int MEAN_TIMING_STATS_CACHE_SIZE = 100;
 
     // Configuration attributes
+    // 获取最大数量，如果没有配置的，默认是 Inter.MaxValue
     private volatile int maxTotal =
             GenericKeyedObjectPoolConfig.DEFAULT_MAX_TOTAL;
+
+    // 当资源耗尽了，是否block
     private volatile boolean blockWhenExhausted =
             BaseObjectPoolConfig.DEFAULT_BLOCK_WHEN_EXHAUSTED;
+
+    // 最大等待时间 等于 无限大
     private volatile long maxWaitMillis =
             BaseObjectPoolConfig.DEFAULT_MAX_WAIT_MILLIS;
+    // Last In First Out 后进先出法，
     private volatile boolean lifo = BaseObjectPoolConfig.DEFAULT_LIFO;
     private final boolean fairness;
+
     private volatile boolean testOnCreate =
             BaseObjectPoolConfig.DEFAULT_TEST_ON_CREATE;
     private volatile boolean testOnBorrow =
@@ -78,6 +81,8 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
             BaseObjectPoolConfig.DEFAULT_TEST_ON_RETURN;
     private volatile boolean testWhileIdle =
             BaseObjectPoolConfig.DEFAULT_TEST_WHILE_IDLE;
+
+    // 如果此值大于 0 ，将会有一个定时任务扫描
     private volatile long timeBetweenEvictionRunsMillis =
             BaseObjectPoolConfig.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS;
     private volatile int numTestsPerEvictionRun =
@@ -86,6 +91,7 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
             BaseObjectPoolConfig.DEFAULT_MIN_EVICTABLE_IDLE_TIME_MILLIS;
     private volatile long softMinEvictableIdleTimeMillis =
             BaseObjectPoolConfig.DEFAULT_SOFT_MIN_EVICTABLE_IDLE_TIME_MILLIS;
+
     private volatile EvictionPolicy<T> evictionPolicy;
     private volatile long evictorShutdownTimeoutMillis =
             BaseObjectPoolConfig.DEFAULT_EVICTOR_SHUTDOWN_TIMEOUT_MILLIS;
@@ -93,7 +99,10 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
 
     // Internal (primarily state) attributes
     final Object closeLock = new Object();
+
+    // 判定 pool 是否开了
     volatile boolean closed = false;
+
     final Object evictionLock = new Object();
     private Evictor evictor = null; // @GuardedBy("evictionLock")
     EvictionIterator evictionIterator = null; // @GuardedBy("evictionLock")
@@ -109,15 +118,25 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
     // Monitoring (primarily JMX) attributes
     private final ObjectName oname;
     private final String creationStackTrace;
+
+    // 借的次数
     private final AtomicLong borrowedCount = new AtomicLong(0);
+    // 归还的次数
     private final AtomicLong returnedCount = new AtomicLong(0);
+    // 创建的次数
     final AtomicLong createdCount = new AtomicLong(0);
+    // 销毁的次数
     final AtomicLong destroyedCount = new AtomicLong(0);
+
     final AtomicLong destroyedByEvictorCount = new AtomicLong(0);
     final AtomicLong destroyedByBorrowValidationCount = new AtomicLong(0);
+
+    // 数据采集，默认存储 100
     private final StatsStore activeTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
     private final StatsStore idleTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
     private final StatsStore waitTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
+
+    // 最大等待市场
     private final AtomicLong maxBorrowWaitTimeMillis = new AtomicLong(0L);
     private volatile SwallowedExceptionListener swallowedExceptionListener = null;
 
@@ -706,6 +725,7 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
 
     /**
      * Verifies that the pool is open.
+     * 判定 pool 是否关闭了
      * @throws IllegalStateException if the pool is closed.
      */
     final void assertOpen() throws IllegalStateException {
@@ -731,6 +751,7 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
                 evictor = null;
                 evictionIterator = null;
             }
+            // 如果延迟大于 0 ,将会启动
             if (delay > 0) {
                 evictor = new Evictor();
                 EvictionTimer.schedule(evictor, delay, delay);
@@ -918,17 +939,22 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
 
     /**
      * Updates statistics after an object is borrowed from the pool.
+     * 在对象从 池里面借出去后，更新统计数据
      * @param p object borrowed from the pool
      * @param waitTime time (in milliseconds) that the borrowing thread had to wait
      */
     final void updateStatsBorrow(final PooledObject<T> p, final long waitTime) {
+        // 接的次数
         borrowedCount.incrementAndGet();
+
         idleTimes.add(p.getIdleTimeMillis());
+        // 等待市场
         waitTimes.add(waitTime);
 
         // lock-free optimistic-locking maximum
         long currentMax;
         do {
+            // 最大等待市场。在 32 位上。long 型是有问题的
             currentMax = maxBorrowWaitTimeMillis.get();
             if (currentMax >= waitTime) {
                 break;
@@ -938,11 +964,14 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
 
     /**
      * Updates statistics after an object is returned to the pool.
+     * 当此对象归还到 pool 中的时候，将更新相关的统计信息
      * @param activeTime the amount of time (in milliseconds) that the returning
      * object was checked out
      */
     final void updateStatsReturn(final long activeTime) {
+        // +1
         returnedCount.incrementAndGet();
+        // 对象活跃的时间
         activeTimes.add(activeTime);
     }
 
@@ -1040,7 +1069,7 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
 
     // Inner classes
 
-    /**
+    /** 发呆对象的 Task
      * The idle object evictor {@link TimerTask}.
      *
      * @see GenericKeyedObjectPool#setTimeBetweenEvictionRunsMillis
@@ -1237,6 +1266,8 @@ public abstract class BaseGenericObjectPool<T> extends BaseObject {
             this.instance = instance;
         }
 
+        // 根据对象在内存中的地址算出来的一个数值，不同的地址算出来的结果是不一样的 .
+        // 非常推荐这种方式。
         @Override
         public int hashCode() {
             return System.identityHashCode(instance);

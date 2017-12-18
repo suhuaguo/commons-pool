@@ -28,6 +28,7 @@ import java.util.Deque;
  * @param <T> the type of object in the pool
  *
  * @since 2.0
+ * INFO:池化的对象，是对对象的一个包装，加上了对象的一些其他信息，包括对象的状态（已用、空闲），对象的创建时间等。
  */
 public interface PooledObject<T> extends Comparable<PooledObject<T>> {
 
@@ -144,7 +145,7 @@ public interface PooledObject<T> extends Comparable<PooledObject<T>> {
      */
     boolean allocate();
 
-    /**
+    /**重新分配次对象。设置此对象的状态为 IDLE
      * Deallocates the object and sets it {@link PooledObjectState#IDLE IDLE}
      * if it is currently {@link PooledObjectState#ALLOCATED ALLOCATED}.
      *

@@ -18,6 +18,7 @@ package org.apache.commons.pool2;
 
 /**
  * A base class for common functionality.
+ * 基础类，公共的方法
  *
  * @since 2.4.3
  */

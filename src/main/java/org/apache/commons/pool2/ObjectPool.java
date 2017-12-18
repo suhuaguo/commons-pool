@@ -54,10 +54,18 @@ import java.util.NoSuchElementException;
  * @see BaseObjectPool
  *
  * @since 2.0
+ * INFO:提供所有对象的存取管理。
+ * ObjectPool会持有PooledObjectFactory，将具体的对象的创建、初始化、销毁等任务交给它处理，
+ * 其操作对象是PooledObject，即具体的Object的包装类。
  */
 public interface ObjectPool<T> extends Closeable {
     /**
      * Obtains an instance from this pool.
+     * 从Pool获取一个对象,此操作将导致一个"对象"从Pool移除(脱离Pool管理),
+     * 调用者可以在获得"对象"引用后即可使用,且需要在使用结束后"归还".
+     *
+     * TODO:阅读源码的入口
+     *
      * <p>
      * Instances returned from this method will have been either newly created
      * with {@link PooledObjectFactory#makeObject} or will be a previously

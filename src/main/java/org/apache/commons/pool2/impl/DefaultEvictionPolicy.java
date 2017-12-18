@@ -36,9 +36,18 @@ import org.apache.commons.pool2.PooledObject;
  * @param <T> the type of objects in the pool
  *
  * @since 2.0
+ * INFO:默认的驱逐对象的策略
  */
 public class DefaultEvictionPolicy<T> implements EvictionPolicy<T> {
 
+    /**
+     * 只是做了很简单的判断
+     * @param config    The pool configuration settings related to eviction
+     * @param underTest The pooled object being tested for eviction
+     * @param idleCount The current number of idle objects in the pool including
+     *                      the object under test
+     * @return
+     */
     @Override
     public boolean evict(final EvictionConfig config, final PooledObject<T> underTest,
             final int idleCount) {

@@ -38,6 +38,8 @@ import java.util.concurrent.TimeUnit;
  * This class is intended to be thread-safe.
  *
  * @since 2.0
+ * INFO:这个类的目的主要是防止 线程跑偏了或者内存泄漏 或者应该突然间垮掉了。
+ * 而且，这个是强制必须要使用的
  */
 class EvictionTimer {
 
@@ -78,6 +80,8 @@ class EvictionTimer {
             executor = new ScheduledThreadPoolExecutor(1, new EvictorThreadFactory());
         }
         usageCount++;
+
+        // 毫秒级别，可能有点影响性能
         executor.scheduleWithFixedDelay(task, delay, period, TimeUnit.MILLISECONDS);
     }
 

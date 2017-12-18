@@ -298,16 +298,23 @@ class LinkedBlockingDeque<E> extends AbstractQueue<E>
         }
         final Node<E> n = f.next;
         final E item = f.item;
+
+        // 有助于 GC 快速回收 f 节点。因为 f 是 First 节点，pre=null ,item=null f.next=f ，指向自己。
         f.item = null;
         f.next = f; // help GC
+
         first = n;
         if (n == null) {
             last = null;
         } else {
             n.prev = null;
         }
+        // 元素的数量少了一个
         --count;
+
+        // 发出 not full 信号。告知可以插入对象啦。
         notFull.signal();
+
         return item;
     }
 
@@ -555,6 +562,7 @@ class LinkedBlockingDeque<E> extends AbstractQueue<E>
         return x;
     }
 
+    // 存在锁，在高并发的情况下，可能有点问题
     @Override
     public E pollFirst() {
         lock.lock();
@@ -627,7 +635,9 @@ class LinkedBlockingDeque<E> extends AbstractQueue<E>
      */
     public E pollFirst(final long timeout, final TimeUnit unit)
         throws InterruptedException {
+
         long nanos = unit.toNanos(timeout);
+
         lock.lockInterruptibly();
         try {
             E x;

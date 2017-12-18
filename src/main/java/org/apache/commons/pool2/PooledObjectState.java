@@ -18,17 +18,20 @@ package org.apache.commons.pool2;
 
 /**
  * Provides the possible states that a {@link PooledObject} may be in.
+ * 池化对象的状态值
  *
  * @since 2.0
  */
 public enum PooledObjectState {
     /**
      * In the queue, not in use.
+     * 在 queue 里面，没有使用
      */
     IDLE,
 
     /**
      * In use.
+     * 正在使用
      */
     ALLOCATED,
 
@@ -74,13 +77,15 @@ public enum PooledObjectState {
      */
     INVALID,
 
-    /**
+    /** 认为此对象可以抛弃，认为是无效的
      * Deemed abandoned, to be invalidated.
      */
     ABANDONED,
 
     /**
      * Returning to the pool.
+     * 已经归还给 pool 池
+     * TODO:那队列呢？idle 状态呢
      */
     RETURNING
 }

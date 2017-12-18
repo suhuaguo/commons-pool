@@ -24,6 +24,7 @@ package org.apache.commons.pool2;
  * This class is intended to be thread-safe.
  *
  * @param <T> Type of element pooled in this pool.
+ *           线程安全的。通过阅读里面的代码知道
  *
  * @since 2.0
  */
